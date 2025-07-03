@@ -12,9 +12,10 @@ const parser = new Parser();
 // Oil Price API Configuration
 const OIL_PRICE_API_KEY = '50efc7a396586517babc8e62bc338e82bc3246f6fd9e92a1923a477ada10f02c';
 
-// Oil price cache
+// Oil price cache with current and previous prices
 let oilPriceCache = {
-  data: null,
+  current: null,
+  previous: null,
   lastUpdated: null,
   isUpdating: false
 };
@@ -191,7 +192,8 @@ async function updateOilPriceCache() {
   try {
     const prices = await fetchOilPrices();
     if (prices) {
-      oilPriceCache.data = prices;
+      oilPriceCache.current = prices;
+      oilPriceCache.previous = oilPriceCache.current;
       oilPriceCache.lastUpdated = new Date();
       console.log('Oil price cache updated successfully');
     }
@@ -265,16 +267,27 @@ app.get('/api/oil-prices', async (req, res) => {
       await updateOilPriceCache();
     }
 
-    // Return cached data
-    if (oilPriceCache.data) {
-      res.json(oilPriceCache.data);
+    // Return cached data with both current and previous prices
+    if (oilPriceCache.current) {
+      const response = {
+        current: oilPriceCache.current,
+        previous: oilPriceCache.previous,
+        lastUpdated: oilPriceCache.lastUpdated
+      };
+      res.json(response);
     } else {
       // If no cache, fetch fresh data
       const prices = await fetchOilPrices();
       if (prices) {
-        oilPriceCache.data = prices;
+        oilPriceCache.current = prices;
+        oilPriceCache.previous = prices;
         oilPriceCache.lastUpdated = new Date();
-        res.json(prices);
+        const response = {
+          current: prices,
+          previous: prices,
+          lastUpdated: oilPriceCache.lastUpdated
+        };
+        res.json(response);
       } else {
         res.status(500).json({ error: 'Failed to fetch oil prices' });
       }
