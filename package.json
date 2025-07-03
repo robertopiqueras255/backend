@@ -1,0 +1,13 @@
+{
+  "name": "back",
+  "version": "1.0.0",
+  "main": "news-backend.js",
+  "scripts": {
+    "start": "node news-backend.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "cors": "^2.8.5",
+    "rss-parser": "^3.13.0"
+  }
+}
