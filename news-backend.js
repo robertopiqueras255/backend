@@ -206,13 +206,24 @@ async function updateOilPriceCache() {
 
 // Check if cache needs updating (hourly)
 function shouldUpdateCache() {
-  if (!oilPriceCache.lastUpdated) return true;
+  if (!oilPriceCache.lastUpdated) {
+    console.log('No cache exists, will update...');
+    return true;
+  }
   
   const now = new Date();
   const lastUpdate = new Date(oilPriceCache.lastUpdated);
   const hoursSinceUpdate = (now - lastUpdate) / (1000 * 60 * 60);
   
-  return hoursSinceUpdate >= 1; // Update every hour
+  console.log(`Hours since last update: ${hoursSinceUpdate.toFixed(2)}`);
+  
+  if (hoursSinceUpdate >= 1) {
+    console.log('Cache is older than 1 hour, will update...');
+    return true;
+  } else {
+    console.log('Cache is still fresh, using cached data...');
+    return false;
+  }
 }
 
 // News endpoint
@@ -262,9 +273,14 @@ app.get('/api/news', async (req, res) => {
 // Oil prices endpoint with caching
 app.get('/api/oil-prices', async (req, res) => {
   try {
+    console.log('Oil prices endpoint called');
+    
     // Check if we need to update the cache
     if (shouldUpdateCache()) {
+      console.log('Updating cache...');
       await updateOilPriceCache();
+    } else {
+      console.log('Using existing cache...');
     }
 
     // Return cached data with both current and previous prices
@@ -274,9 +290,11 @@ app.get('/api/oil-prices', async (req, res) => {
         previous: oilPriceCache.previous,
         lastUpdated: oilPriceCache.lastUpdated
       };
+      console.log('Returning cached data');
       res.json(response);
     } else {
       // If no cache, fetch fresh data
+      console.log('No cache exists, fetching fresh data...');
       const prices = await fetchOilPrices();
       if (prices) {
         oilPriceCache.current = prices;
@@ -287,8 +305,10 @@ app.get('/api/oil-prices', async (req, res) => {
           previous: prices,
           lastUpdated: oilPriceCache.lastUpdated
         };
+        console.log('Returning fresh data');
         res.json(response);
       } else {
+        console.log('Failed to fetch prices');
         res.status(500).json({ error: 'Failed to fetch oil prices' });
       }
     }
