@@ -24,7 +24,10 @@ const FEEDS = {
   energy: 'https://rss.app/feeds/_iP3HVWTdd0BxHjSn.xml', // rss.app energy feed
   commodities: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', // fallback example
   bloomberg: 'https://www.bloomberg.com/feed/podcast/energy.xml',
+<<<<<<< HEAD
   'minerals and metals': 'https://rss.app/feeds/_Ky0tiLYZBarIjRMC.xml', // rss.app minerals and metals feed
+=======
+>>>>>>> 8c1af726fc4018796d0589ea9c256b51369e0995
 };
 
 app.use(cors());
@@ -231,6 +234,7 @@ function shouldUpdateCache() {
 app.get('/api/news', async (req, res) => {
   const feedKey = req.query.feed;
   const feedUrl = FEEDS[feedKey];
+<<<<<<< HEAD
   console.log(`News endpoint called for feed: ${feedKey}, URL: ${feedUrl}`);
   
   if (!feedUrl) {
@@ -243,6 +247,13 @@ app.get('/api/news', async (req, res) => {
     const feed = await parser.parseURL(feedUrl);
     console.log(`Feed parsed successfully. Found ${feed.items.length} items.`);
     
+=======
+  if (!feedUrl) {
+    return res.status(400).json({ error: 'Invalid feed parameter' });
+  }
+  try {
+    const feed = await parser.parseURL(feedUrl);
+>>>>>>> 8c1af726fc4018796d0589ea9c256b51369e0995
     // Enhance items with image extraction
     const items = feed.items.map(item => {
       let image = null;
@@ -272,11 +283,16 @@ app.get('/api/news', async (req, res) => {
       }
       return { ...item, image };
     });
+<<<<<<< HEAD
     
     console.log(`Processed ${items.length} items with images.`);
     res.json({ items });
   } catch (error) {
     console.error('Error parsing RSS feed:', error);
+=======
+    res.json({ items });
+  } catch (error) {
+>>>>>>> 8c1af726fc4018796d0589ea9c256b51369e0995
     res.status(500).json({ error: 'Failed to fetch or parse RSS feed' });
   }
 });
@@ -329,6 +345,7 @@ app.get('/api/oil-prices', async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 // Minerals prices endpoint with fallback data
 app.get('/api/minerals-prices', async (req, res) => {
   try {
@@ -406,6 +423,8 @@ app.get('/api/minerals-prices', async (req, res) => {
   }
 });
 
+=======
+>>>>>>> 8c1af726fc4018796d0589ea9c256b51369e0995
 // Initialize oil price cache on startup
 updateOilPriceCache();
 
