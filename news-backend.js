@@ -81,6 +81,7 @@ async function fetchWithChangeFromOilPriceAPI(code) {
     }
 
     const data = await response.json();
+    console.log(`API response for ${code}:`, data);
     if (data && data.data && Array.isArray(data.data) && data.data.length >= 2) {
       const latest = data.data[0];
       const previous = data.data[1];
@@ -89,23 +90,28 @@ async function fetchWithChangeFromOilPriceAPI(code) {
       if (!isNaN(price) && !isNaN(prevPrice)) {
         const change = (price - prevPrice).toFixed(2);
         const changePercent = ((price - prevPrice) / prevPrice * 100).toFixed(2);
+        let lastUpdated;
+        if (latest.created_at && !isNaN(Date.parse(latest.created_at))) {
+          lastUpdated = new Date(latest.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        } else {
+          lastUpdated = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        }
         return {
           price,
           change,
           changePercent,
-          lastUpdated: latest.created_at ? new Date(latest.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : null,
+          lastUpdated,
           isPositive: parseFloat(change) >= 0
         };
       }
     }
-    
     // Fallback to latest price only
     const fallback = await fetchFromOilPriceAPI(code);
     return {
       ...fallback,
       change: null,
       changePercent: null,
-      lastUpdated: fallback && fallback.lastUpdated ? fallback.lastUpdated : null
+      lastUpdated: fallback && fallback.lastUpdated ? fallback.lastUpdated : new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
     };
   } catch (error) {
     console.error('Error fetching historical prices from OilPriceAPI:', error);
@@ -114,7 +120,7 @@ async function fetchWithChangeFromOilPriceAPI(code) {
       ...fallback,
       change: null,
       changePercent: null,
-      lastUpdated: fallback && fallback.lastUpdated ? fallback.lastUpdated : null
+      lastUpdated: fallback && fallback.lastUpdated ? fallback.lastUpdated : new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
     };
   }
 }
@@ -139,13 +145,20 @@ async function fetchFromOilPriceAPI(code) {
     }
 
     const data = await response.json();
+    console.log(`Latest API response for ${code}:`, data);
     if (data && data.data) {
+      let lastUpdated;
+      if (data.data.date && !isNaN(Date.parse(data.data.date))) {
+        lastUpdated = new Date(data.data.date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      } else {
+        lastUpdated = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      }
       return {
         price: parseFloat(data.data.price).toFixed(2),
-        change: parseFloat(data.data.change).toFixed(2),
-        changePercent: parseFloat(data.data.change_percent).toFixed(2),
-        lastUpdated: new Date(data.data.date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-        isPositive: parseFloat(data.data.change) >= 0
+        change: data.data.change ? parseFloat(data.data.change).toFixed(2) : null,
+        changePercent: data.data.change_percent ? parseFloat(data.data.change_percent).toFixed(2) : null,
+        lastUpdated,
+        isPositive: data.data.change ? parseFloat(data.data.change) >= 0 : null
       };
     }
     throw new Error('No data');
