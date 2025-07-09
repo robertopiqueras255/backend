@@ -155,6 +155,23 @@ async function fetchFromOilPriceAPI(code) {
   }
 }
 
+// Function to fetch coal prices from OilPriceAPI
+async function fetchCoalPrice() {
+  try {
+    const coal = await fetchWithChangeFromOilPriceAPI('COAL_USD');
+    return {
+      coal: {
+        title: 'Coal',
+        subtitle: 'API2 CIF ARA',
+        ...coal
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching coal price:', error);
+    return null;
+  }
+}
+
 // Fallback data when API is unavailable
 function getFallbackData(code) {
   const now = new Date();
@@ -166,7 +183,8 @@ function getFallbackData(code) {
   const fallbackPrices = {
     'BRENT_CRUDE_USD': { price: '68.21', change: '0.55', changePercent: '0.81' },
     'WTI_USD': { price: '66.52', change: '1.07', changePercent: '1.63' },
-    'DUBAI_CRUDE_USD': { price: '67.89', change: '0.32', changePercent: '0.47' }
+    'DUBAI_CRUDE_USD': { price: '67.89', change: '0.32', changePercent: '0.47' },
+    'COAL_USD': { price: '120.50', change: '-1.20', changePercent: '-0.99' } // fallback for coal
   };
   
   const data = fallbackPrices[code] || { price: '65.00', change: '0.00', changePercent: '0.00' };
@@ -403,6 +421,22 @@ app.get('/api/minerals-prices', async (req, res) => {
   } catch (error) {
     console.error('Error in minerals prices endpoint:', error);
     res.status(500).json({ error: 'Failed to fetch minerals prices' });
+  }
+});
+
+// Coal prices endpoint
+app.get('/api/coal-prices', async (req, res) => {
+  try {
+    console.log('Coal prices endpoint called');
+    const price = await fetchCoalPrice();
+    if (price) {
+      res.json({ current: price });
+    } else {
+      res.status(500).json({ error: 'Failed to fetch coal price' });
+    }
+  } catch (error) {
+    console.error('Error in coal prices endpoint:', error);
+    res.status(500).json({ error: 'Failed to fetch coal price' });
   }
 });
 // Initialize oil price cache on startup
