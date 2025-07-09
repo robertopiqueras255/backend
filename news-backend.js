@@ -441,12 +441,37 @@ app.get('/api/minerals-prices', async (req, res) => {
 app.get('/api/coal-prices', async (req, res) => {
   try {
     console.log('Coal prices endpoint called');
-    const price = await fetchCoalPrice();
-    if (price) {
-      res.json({ current: price });
+    const priceObj = await fetchCoalPrice();
+    let response;
+    if (priceObj && priceObj.coal) {
+      // Extract the ISO date string from the latest API response
+      let lastUpdate = priceObj.coal.created_at || priceObj.coal.lastUpdate || priceObj.coal.lastUpdated || null;
+      if (!lastUpdate) {
+        lastUpdate = new Date().toISOString();
+      }
+      // Ensure price is a string with two decimals, or 'N/A' if missing
+      let price = priceObj.coal.price;
+      if (price === undefined || price === null || isNaN(price)) {
+        price = 'N/A';
+      } else {
+        price = parseFloat(price).toFixed(2);
+      }
+      response = {
+        thermal: {
+          price,
+          change: priceObj.coal.change ?? null,
+          changePercent: priceObj.coal.changePercent ?? null,
+          lastUpdate,
+          unit: 'USD/ton'
+        },
+        coking: null,
+        anthracite: null
+      };
     } else {
-      res.status(500).json({ error: 'Failed to fetch coal price' });
+      response = { thermal: null, coking: null, anthracite: null };
     }
+    console.log('Sending to frontend:', response);
+    res.json(response);
   } catch (error) {
     console.error('Error in coal prices endpoint:', error);
     res.status(500).json({ error: 'Failed to fetch coal price' });
