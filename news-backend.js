@@ -20,6 +20,14 @@ let oilPriceCache = {
   isUpdating: false
 };
 
+// Coal price cache with current and previous prices
+let coalPriceCache = {
+  current: null,
+  previous: null,
+  lastUpdated: null,
+  isUpdating: false
+};
+
 const FEEDS = {
   energy: 'https://rss.app/feeds/_iP3HVWTdd0BxHjSn.xml', // rss.app energy feed
   commodities: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', // fallback example
@@ -258,6 +266,53 @@ function shouldUpdateCache() {
   }
 }
 
+// Function to update coal prices cache
+async function updateCoalPriceCache() {
+  if (coalPriceCache.isUpdating) {
+    console.log('Coal price update already in progress, skipping...');
+    return;
+  }
+
+  coalPriceCache.isUpdating = true;
+  console.log('Updating coal price cache...');
+  
+  try {
+    const prices = await fetchCoalPrice();
+    if (prices) {
+      coalPriceCache.current = prices;
+      coalPriceCache.previous = coalPriceCache.current;
+      coalPriceCache.lastUpdated = new Date();
+      console.log('Coal price cache updated successfully');
+    }
+  } catch (error) {
+    console.error('Error updating coal price cache:', error);
+  } finally {
+    coalPriceCache.isUpdating = false;
+  }
+}
+
+// Check if coal cache needs updating (hourly)
+function shouldUpdateCoalCache() {
+  if (!coalPriceCache.lastUpdated) {
+    console.log('No coal cache exists, will update...');
+    return true;
+  }
+  
+  const now = new Date();
+  const lastUpdate = new Date(coalPriceCache.lastUpdated);
+  const hoursSinceUpdate = (now - lastUpdate) / (1000 * 60 * 60);
+  
+  console.log(`Hours since last coal update: ${hoursSinceUpdate.toFixed(2)}`);
+  
+  if (hoursSinceUpdate >= 1) {
+    console.log('Coal cache is older than 1 hour, will update...');
+    return true;
+  } else {
+    console.log('Coal cache is still fresh, using cached data...');
+    return false;
+  }
+}
+
 // News endpoint
 app.get('/api/news', async (req, res) => {
   const feedKey = req.query.feed;
@@ -437,20 +492,28 @@ app.get('/api/minerals-prices', async (req, res) => {
   }
 });
 
-// Coal prices endpoint
+// Coal prices endpoint with caching
 app.get('/api/coal-prices', async (req, res) => {
   try {
     console.log('Coal prices endpoint called');
-    const priceObj = await fetchCoalPrice();
+    
+    // Check if we need to update the cache
+    if (shouldUpdateCoalCache()) {
+      console.log('Updating coal cache...');
+      await updateCoalPriceCache();
+    } else {
+      console.log('Using existing coal cache...');
+    }
+
     let response;
-    if (priceObj && priceObj.coal) {
+    if (coalPriceCache.current && coalPriceCache.current.coal) {
       // Extract the ISO date string from the latest API response
-      let lastUpdate = priceObj.coal.created_at || priceObj.coal.lastUpdate || priceObj.coal.lastUpdated || null;
+      let lastUpdate = coalPriceCache.current.coal.created_at || coalPriceCache.current.coal.lastUpdate || coalPriceCache.current.coal.lastUpdated || null;
       if (!lastUpdate) {
         lastUpdate = new Date().toISOString();
       }
       // Ensure price is a string with two decimals, or 'N/A' if missing
-      let price = priceObj.coal.price;
+      let price = coalPriceCache.current.coal.price;
       if (price === undefined || price === null || isNaN(price)) {
         price = 'N/A';
       } else {
@@ -459,8 +522,8 @@ app.get('/api/coal-prices', async (req, res) => {
       response = {
         thermal: {
           price,
-          change: priceObj.coal.change ?? null,
-          changePercent: priceObj.coal.changePercent ?? null,
+          change: coalPriceCache.current.coal.change ?? null,
+          changePercent: coalPriceCache.current.coal.changePercent ?? null,
           lastUpdate,
           unit: 'USD/ton'
         },
@@ -468,7 +531,36 @@ app.get('/api/coal-prices', async (req, res) => {
         anthracite: null
       };
     } else {
-      response = { thermal: null, coking: null, anthracite: null };
+      // If no cache, fetch fresh data
+      console.log('No coal cache exists, fetching fresh data...');
+      const priceObj = await fetchCoalPrice();
+      if (priceObj && priceObj.coal) {
+        // Extract the ISO date string from the latest API response
+        let lastUpdate = priceObj.coal.created_at || priceObj.coal.lastUpdate || priceObj.coal.lastUpdated || null;
+        if (!lastUpdate) {
+          lastUpdate = new Date().toISOString();
+        }
+        // Ensure price is a string with two decimals, or 'N/A' if missing
+        let price = priceObj.coal.price;
+        if (price === undefined || price === null || isNaN(price)) {
+          price = 'N/A';
+        } else {
+          price = parseFloat(price).toFixed(2);
+        }
+        response = {
+          thermal: {
+            price,
+            change: priceObj.coal.change ?? null,
+            changePercent: priceObj.coal.changePercent ?? null,
+            lastUpdate,
+            unit: 'USD/ton'
+          },
+          coking: null,
+          anthracite: null
+        };
+      } else {
+        response = { thermal: null, coking: null, anthracite: null };
+      }
     }
     console.log('Sending to frontend:', response);
     res.json(response);
@@ -479,6 +571,8 @@ app.get('/api/coal-prices', async (req, res) => {
 });
 // Initialize oil price cache on startup
 updateOilPriceCache();
+// Initialize coal price cache on startup
+updateCoalPriceCache();
 
 app.listen(port, () => {
   console.log(`News and oil prices backend listening at http://localhost:${port}`);
