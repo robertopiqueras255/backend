@@ -93,16 +93,17 @@ async function fetchWithChangeFromOilPriceAPI(code) {
     if (data && data.data && Array.isArray(data.data) && data.data.length >= 2) {
       const latest = data.data[0];
       const previous = data.data[1];
-      const price = parseFloat(latest.price).toFixed(2);
-      const prevPrice = parseFloat(previous.price);
+      console.log('Raw API price (latest):', latest.price, 'Raw API price (previous):', previous.price);
+      const price = latest.price !== undefined ? parseFloat(latest.price).toFixed(2) : null;
+      const prevPrice = previous.price !== undefined ? parseFloat(previous.price) : null;
       if (!isNaN(price) && !isNaN(prevPrice)) {
-        const change = (price - prevPrice).toFixed(2);
-        const changePercent = ((price - prevPrice) / prevPrice * 100).toFixed(2);
+        const change = (parseFloat(price) - prevPrice).toFixed(2);
+        const changePercent = ((parseFloat(price) - prevPrice) / prevPrice * 100).toFixed(2);
         let lastUpdated;
         if (latest.created_at && !isNaN(Date.parse(latest.created_at))) {
-          lastUpdated = new Date(latest.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+          lastUpdated = new Date(latest.created_at).toISOString();
         } else {
-          lastUpdated = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+          lastUpdated = new Date().toISOString();
         }
         return {
           price,
@@ -119,7 +120,7 @@ async function fetchWithChangeFromOilPriceAPI(code) {
       ...fallback,
       change: null,
       changePercent: null,
-      lastUpdated: fallback && fallback.lastUpdated ? fallback.lastUpdated : new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+      lastUpdated: fallback && fallback.lastUpdated ? fallback.lastUpdated : new Date().toISOString()
     };
   } catch (error) {
     console.error('Error fetching historical prices from OilPriceAPI:', error);
@@ -128,7 +129,7 @@ async function fetchWithChangeFromOilPriceAPI(code) {
       ...fallback,
       change: null,
       changePercent: null,
-      lastUpdated: fallback && fallback.lastUpdated ? fallback.lastUpdated : new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+      lastUpdated: fallback && fallback.lastUpdated ? fallback.lastUpdated : new Date().toISOString()
     };
   }
 }
@@ -155,14 +156,17 @@ async function fetchFromOilPriceAPI(code) {
     const data = await response.json();
     console.log(`Latest API response for ${code}:`, data);
     if (data && data.data) {
+      console.log('Raw API price (latest):', data.data.price);
       let lastUpdated;
-      if (data.data.date && !isNaN(Date.parse(data.data.date))) {
-        lastUpdated = new Date(data.data.date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      if (data.data.created_at && !isNaN(Date.parse(data.data.created_at))) {
+        lastUpdated = new Date(data.data.created_at).toISOString();
+      } else if (data.data.date && !isNaN(Date.parse(data.data.date))) {
+        lastUpdated = new Date(data.data.date).toISOString();
       } else {
-        lastUpdated = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        lastUpdated = new Date().toISOString();
       }
       return {
-        price: parseFloat(data.data.price).toFixed(2),
+        price: data.data.price !== undefined ? parseFloat(data.data.price).toFixed(2) : null,
         change: data.data.change ? parseFloat(data.data.change).toFixed(2) : null,
         changePercent: data.data.change_percent ? parseFloat(data.data.change_percent).toFixed(2) : null,
         lastUpdated,
