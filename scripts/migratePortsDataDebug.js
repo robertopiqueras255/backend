@@ -6,7 +6,7 @@ const Port = require('../models/Port');
 // MongoDB connection string
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/bedrock-terminal';
 
-async function migratePortsData() {
+async function migratePortsDataDebug() {
   try {
     console.log('🔌 Connecting to MongoDB...');
     await mongoose.connect(MONGODB_URI);
@@ -28,42 +28,59 @@ async function migratePortsData() {
     await Port.deleteMany({});
     console.log('✅ Existing data cleared');
 
-    // Insert all ports data with validation
-    console.log('📝 Inserting ports data...');
+    // Insert all ports data with detailed error reporting
+    console.log('📝 Inserting all ports data...');
     
     let successCount = 0;
     let errorCount = 0;
     
-    for (const port of portsData) {
+    for (let i = 0; i < portsData.length; i++) {
+      const port = portsData[i];
+      
       try {
-        // Validate coordinates
-        if (port.coordinates && Array.isArray(port.coordinates) && port.coordinates.length === 2) {
-          const [lon, lat] = port.coordinates;
-          
-          // Check if coordinates are valid numbers and within valid ranges
-          if (typeof lon === 'number' && typeof lat === 'number' &&
-              lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90) {
-            
-            await Port.create(port);
-            successCount++;
-          } else {
-            console.log(`⚠️  Skipping port "${port.name}" - invalid coordinates: [${lon}, ${lat}]`);
-            errorCount++;
-          }
-        } else {
+        // Basic validation
+        if (!port.coordinates || !Array.isArray(port.coordinates) || port.coordinates.length !== 2) {
           console.log(`⚠️  Skipping port "${port.name}" - missing or invalid coordinates`);
           errorCount++;
+          continue;
         }
+
+        const [first, second] = port.coordinates;
+        if (typeof first !== 'number' || typeof second !== 'number') {
+          console.log(`⚠️  Skipping port "${port.name}" - non-numeric coordinates: [${first}, ${second}]`);
+          errorCount++;
+          continue;
+        }
+
+        // Try to create the port
+        const newPort = new Port(port);
+        await newPort.save();
+        successCount++;
+        
+        // Log progress every 100 ports
+        if (successCount % 100 === 0) {
+          console.log(`📊 Progress: ${successCount} ports migrated...`);
+        }
+        
       } catch (error) {
-        console.log(`❌ Error inserting port "${port.name}": ${error.message}`);
+        console.log(`❌ Error inserting port "${port.name}" (index ${i}):`);
+        console.log(`   Error: ${error.message}`);
+        console.log(`   Port data: ${JSON.stringify(port, null, 2)}`);
+        console.log(`   Coordinates: ${JSON.stringify(port.coordinates)}`);
+        console.log('');
         errorCount++;
+        
+        // Stop after 5 errors to avoid spam
+        if (errorCount >= 5) {
+          console.log('⚠️  Stopping after 5 errors to avoid spam. Check the data format.');
+          break;
+        }
       }
     }
     
     console.log(`✅ Successfully migrated ${successCount} ports`);
-    if (errorCount > 0) {
-      console.log(`⚠️  Skipped ${errorCount} ports due to invalid data`);
-    }
+    console.log(`❌ Failed to migrate ${errorCount} ports`);
+    console.log(`📊 Total processed: ${successCount + errorCount}`);
 
     // Create indexes for better performance
     console.log('🔍 Creating indexes...');
@@ -72,10 +89,11 @@ async function migratePortsData() {
     await Port.collection.createIndex({ coordinates: '2dsphere' });
     console.log('✅ Indexes created successfully');
 
-    console.log('🎉 Migration completed successfully!');
+    console.log('🎉 Migration completed!');
     
   } catch (error) {
     console.error('❌ Migration failed:', error.message);
+    console.error('Full error:', error);
     process.exit(1);
   } finally {
     // Close the MongoDB connection
@@ -87,4 +105,4 @@ async function migratePortsData() {
 }
 
 // Run the migration
-migratePortsData(); 
+migratePortsDataDebug(); 

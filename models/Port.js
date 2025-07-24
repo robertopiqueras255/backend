@@ -3,18 +3,15 @@ const mongoose = require('mongoose');
 const portSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   country: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   coordinates: {
     type: [Number],
-    required: true,
-    index: '2dsphere'
+    required: true
   },
   harborSize: String,
   harborType: String,
@@ -45,7 +42,7 @@ const portSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Create indexes for better query performance
+// Create indexes for better query performance (removed duplicates)
 portSchema.index({ name: 1 });
 portSchema.index({ country: 1 });
 portSchema.index({ coordinates: '2dsphere' });

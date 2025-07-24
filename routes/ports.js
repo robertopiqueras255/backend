@@ -37,6 +37,19 @@ const sampleOilPorts = [
 // GET /api/ports/viewport - Get ports within geographic bounding box
 router.get('/viewport', async (req, res) => {
   try {
+    console.log('🔍 Viewport endpoint called');
+    
+    // Check if MongoDB is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.error('❌ MongoDB not connected. ReadyState:', mongoose.connection.readyState);
+      return res.json({
+        success: true,
+        count: 0,
+        data: [],
+        message: 'Database not connected - returning empty data'
+      });
+    }
+
     const { minLat, maxLat, minLon, maxLon, limit = 1000 } = req.query;
 
     // Validate required parameters
@@ -59,6 +72,22 @@ router.get('/viewport', async (req, res) => {
       });
     }
 
+    console.log(`🔍 Querying ports in viewport: [${minLatNum}, ${maxLatNum}, ${minLonNum}, ${maxLonNum}]`);
+
+    // First, let's check if we have any data at all
+    const totalCount = await Port.countDocuments();
+    console.log(`📊 Total ports in database: ${totalCount}`);
+
+    if (totalCount === 0) {
+      console.log('⚠️  No ports found in database');
+      return res.json({
+        success: true,
+        count: 0,
+        data: [],
+        message: 'No ports found in database'
+      });
+    }
+
     const ports = await Port.find({
       coordinates: {
         $geoWithin: {
@@ -70,6 +99,7 @@ router.get('/viewport', async (req, res) => {
       }
     }).limit(parseInt(limit));
 
+    console.log(`✅ Found ${ports.length} ports in viewport`);
     res.json({
       success: true,
       count: ports.length,
@@ -77,7 +107,7 @@ router.get('/viewport', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching ports by viewport:', error);
+    console.error('❌ Error fetching ports by viewport:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: error.message
@@ -214,6 +244,64 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({
       error: 'Internal server error',
       message: error.message
+    });
+  }
+});
+
+// GET /api/ports/test - Test database connection and basic queries
+router.get('/test', async (req, res) => {
+  try {
+    console.log('🧪 Database test endpoint called');
+    
+    // Check connection
+    const connectionStatus = mongoose.connection.readyState;
+    console.log(`🔌 MongoDB connection status: ${connectionStatus}`);
+    
+    if (connectionStatus !== 1) {
+      return res.json({
+        success: false,
+        message: 'Database not connected',
+        connectionStatus
+      });
+    }
+
+    // Test basic count
+    const totalPorts = await Port.countDocuments();
+    console.log(`📊 Total ports: ${totalPorts}`);
+
+    // Test simple find
+    const samplePort = await Port.findOne();
+    console.log(`📍 Sample port: ${samplePort ? samplePort.name : 'None'}`);
+
+    // Test geospatial index
+    const nearbyPorts = await Port.find({
+      coordinates: {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [0, 0]
+          },
+          $maxDistance: 1000000
+        }
+      }
+    }).limit(1);
+
+    console.log(`🌍 Nearby ports test: ${nearbyPorts.length} found`);
+
+    res.json({
+      success: true,
+      connectionStatus,
+      totalPorts,
+      samplePort: samplePort ? samplePort.name : null,
+      geospatialTest: nearbyPorts.length > 0,
+      message: 'Database test completed successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Database test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });

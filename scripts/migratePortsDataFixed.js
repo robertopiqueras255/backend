@@ -6,7 +6,7 @@ const Port = require('../models/Port');
 // MongoDB connection string
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/bedrock-terminal';
 
-async function migratePortsData() {
+async function migratePortsDataFixed() {
   try {
     console.log('🔌 Connecting to MongoDB...');
     await mongoose.connect(MONGODB_URI);
@@ -28,26 +28,43 @@ async function migratePortsData() {
     await Port.deleteMany({});
     console.log('✅ Existing data cleared');
 
-    // Insert all ports data with validation
-    console.log('📝 Inserting ports data...');
+    // Insert all ports data with coordinate fixing
+    console.log('📝 Inserting ports data with coordinate fixes...');
     
     let successCount = 0;
     let errorCount = 0;
+    let fixedCount = 0;
     
     for (const port of portsData) {
       try {
-        // Validate coordinates
+        // Validate and fix coordinates
         if (port.coordinates && Array.isArray(port.coordinates) && port.coordinates.length === 2) {
-          const [lon, lat] = port.coordinates;
+          const [first, second] = port.coordinates;
           
-          // Check if coordinates are valid numbers and within valid ranges
-          if (typeof lon === 'number' && typeof lat === 'number' &&
-              lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90) {
+          if (typeof first === 'number' && typeof second === 'number') {
+            let fixedCoordinates = port.coordinates;
             
-            await Port.create(port);
+            // Check if coordinates are in wrong format [lat, lon] instead of [lon, lat]
+            if (first >= -90 && first <= 90 && second >= -180 && second <= 180) {
+              // This is [lat, lon] format, need to swap to [lon, lat]
+              fixedCoordinates = [second, first];
+              fixedCount++;
+              console.log(`🔄 Fixed coordinates for ${port.name}: [${first}, ${second}] → [${second}, ${first}]`);
+            } else if (first >= -180 && first <= 180 && second >= -90 && second <= 90) {
+              // This is already correct [lon, lat] format
+              fixedCoordinates = [first, second];
+            } else {
+              console.log(`⚠️  Skipping port "${port.name}" - invalid coordinates: [${first}, ${second}]`);
+              errorCount++;
+              continue;
+            }
+            
+            // Create port with fixed coordinates
+            const fixedPort = { ...port, coordinates: fixedCoordinates };
+            await Port.create(fixedPort);
             successCount++;
           } else {
-            console.log(`⚠️  Skipping port "${port.name}" - invalid coordinates: [${lon}, ${lat}]`);
+            console.log(`⚠️  Skipping port "${port.name}" - non-numeric coordinates`);
             errorCount++;
           }
         } else {
@@ -61,6 +78,7 @@ async function migratePortsData() {
     }
     
     console.log(`✅ Successfully migrated ${successCount} ports`);
+    console.log(`🔄 Fixed coordinates for ${fixedCount} ports`);
     if (errorCount > 0) {
       console.log(`⚠️  Skipped ${errorCount} ports due to invalid data`);
     }
@@ -87,4 +105,4 @@ async function migratePortsData() {
 }
 
 // Run the migration
-migratePortsData(); 
+migratePortsDataFixed(); 

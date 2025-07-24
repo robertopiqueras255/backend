@@ -6,7 +6,7 @@ const Port = require('../models/Port');
 // MongoDB connection string
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/bedrock-terminal';
 
-async function migratePortsData() {
+async function migratePortsDataSimple() {
   try {
     console.log('🔌 Connecting to MongoDB...');
     await mongoose.connect(MONGODB_URI);
@@ -28,26 +28,22 @@ async function migratePortsData() {
     await Port.deleteMany({});
     console.log('✅ Existing data cleared');
 
-    // Insert all ports data with validation
-    console.log('📝 Inserting ports data...');
+    // Insert all ports data (coordinates are already correct)
+    console.log('📝 Inserting all ports data...');
     
     let successCount = 0;
     let errorCount = 0;
     
     for (const port of portsData) {
       try {
-        // Validate coordinates
+        // Basic validation - just check if coordinates exist and are numbers
         if (port.coordinates && Array.isArray(port.coordinates) && port.coordinates.length === 2) {
-          const [lon, lat] = port.coordinates;
-          
-          // Check if coordinates are valid numbers and within valid ranges
-          if (typeof lon === 'number' && typeof lat === 'number' &&
-              lon >= -180 && lon <= 180 && lat >= -90 && lat <= 90) {
-            
+          const [first, second] = port.coordinates;
+          if (typeof first === 'number' && typeof second === 'number') {
             await Port.create(port);
             successCount++;
           } else {
-            console.log(`⚠️  Skipping port "${port.name}" - invalid coordinates: [${lon}, ${lat}]`);
+            console.log(`⚠️  Skipping port "${port.name}" - non-numeric coordinates`);
             errorCount++;
           }
         } else {
@@ -87,4 +83,4 @@ async function migratePortsData() {
 }
 
 // Run the migration
-migratePortsData(); 
+migratePortsDataSimple(); 
