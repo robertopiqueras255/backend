@@ -12,6 +12,14 @@ const { redisClient, cacheUtils } = require('./redisClient');
 const marineTrafficService = require('./marineTrafficService');
 const WebSocketHandler = require('./websocketHandler');
 
+// Log environment variables on startup
+console.log('🔧 Environment Variables Check:');
+console.log('- MARINETRAFFIC_API_KEY:', process.env.MARINETRAFFIC_API_KEY ? 'SET' : 'NOT SET');
+console.log('- MAPBOX_TOKEN:', process.env.MAPBOX_TOKEN ? 'SET' : 'NOT SET');
+console.log('- REDIS_HOST:', process.env.REDIS_HOST || 'localhost');
+console.log('- PORT:', process.env.PORT || 4000);
+console.log('- NODE_ENV:', process.env.NODE_ENV || 'development');
+
 const app = express();
 const server = http.createServer(app);
 const port = process.env.PORT || 4000;
@@ -778,9 +786,14 @@ app.get('/api/health', async (req, res) => {
 
 // Mapbox token endpoint
 app.get('/api/mapbox-token', (req, res) => {
+  console.log('Mapbox token endpoint called');
+  console.log('MAPBOX_TOKEN from env:', MAPBOX_TOKEN ? 'SET' : 'NOT SET');
+  
   if (MAPBOX_TOKEN) {
+    console.log('Returning Mapbox token successfully');
     res.json({ token: MAPBOX_TOKEN });
   } else {
+    console.error('MAPBOX_TOKEN not set in environment variables');
     res.status(500).json({ error: 'MAPBOX_TOKEN not set in environment variables' });
   }
 });
