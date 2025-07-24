@@ -23,6 +23,9 @@ const wsHandler = new WebSocketHandler(server);
 // Oil Price API Configuration
 const OIL_PRICE_API_KEY = '50efc7a396586517babc8e62bc338e82bc3246f6fd9e92a1923a477ada10f02c';
 
+// Mapbox Token Configuration
+const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN;
+
 // Oil price cache with current and previous prices
 let oilPriceCache = {
   current: null,
@@ -770,6 +773,15 @@ app.get('/api/health', async (req, res) => {
       status: 'unhealthy',
       error: error.message 
     });
+  }
+});
+
+// Mapbox token endpoint
+app.get('/api/mapbox-token', (req, res) => {
+  if (MAPBOX_TOKEN) {
+    res.json({ token: MAPBOX_TOKEN });
+  } else {
+    res.status(500).json({ error: 'MAPBOX_TOKEN not set in environment variables' });
   }
 });
 
