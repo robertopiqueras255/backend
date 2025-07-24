@@ -1,13 +1,24 @@
 // news-backend.js
-// Simple Express backend to fetch and parse RSS feeds for news and cache oil prices
+// Enhanced Express backend with MarineTraffic API integration, Redis caching, and Socket.IO
 
 const express = require('express');
 const cors = require('cors');
 const Parser = require('rss-parser');
+const http = require('http');
+require('dotenv').config();
+
+// Import new services
+const { redisClient, cacheUtils } = require('./redisClient');
+const marineTrafficService = require('./marineTrafficService');
+const WebSocketHandler = require('./websocketHandler');
 
 const app = express();
-const port = 4000;
+const server = http.createServer(app);
+const port = process.env.PORT || 4000;
 const parser = new Parser();
+
+// Initialize WebSocket handler
+const wsHandler = new WebSocketHandler(server);
 
 // Oil Price API Configuration
 const OIL_PRICE_API_KEY = '50efc7a396586517babc8e62bc338e82bc3246f6fd9e92a1923a477ada10f02c';
@@ -36,6 +47,7 @@ const FEEDS = {
 };
 
 app.use(cors());
+app.use(express.json());
 
 // Function to fetch oil prices from OilPriceAPI
 async function fetchOilPrices() {
@@ -573,11 +585,199 @@ app.get('/api/coal-prices', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch coal price' });
   }
 });
+
+
+
+// MarineTraffic REST API Endpoints
+
+// Get vessels within viewport
+app.get('/api/vessels', async (req, res) => {
+  try {
+    const { minLat, maxLat, minLon, maxLon, vesselType } = req.query;
+    
+    if (!minLat || !maxLat || !minLon || !maxLon) {
+      return res.status(400).json({ 
+        error: 'Missing required parameters: minLat, maxLat, minLon, maxLon' 
+      });
+    }
+
+    const bounds = {
+      minLat: parseFloat(minLat),
+      maxLat: parseFloat(maxLat),
+      minLon: parseFloat(minLon),
+      maxLon: parseFloat(maxLon)
+    };
+
+    console.log('Vessels endpoint called with bounds:', bounds);
+    const vessels = await marineTrafficService.getVesselsInViewport(bounds, vesselType);
+    
+    res.json({
+      success: true,
+      data: vessels,
+      bounds,
+      vesselType: vesselType || 'all'
+    });
+  } catch (error) {
+    console.error('Error in vessels endpoint:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch vessels data' 
+    });
+  }
+});
+
+// Get specific vessel details
+app.get('/api/vessels/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { identifierType = 'imo' } = req.query;
+    
+    console.log(`Vessel details endpoint called for ${identifierType}: ${id}`);
+    const vesselDetails = await marineTrafficService.getVesselDetails(id, identifierType);
+    
+    res.json({
+      success: true,
+      data: vesselDetails
+    });
+  } catch (error) {
+    console.error('Error in vessel details endpoint:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch vessel details' 
+    });
+  }
+});
+
+// Search vessels
+app.get('/api/vessels/search', async (req, res) => {
+  try {
+    const { query, searchType = 'name' } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({ 
+        error: 'Missing required parameter: query' 
+      });
+    }
+
+    console.log(`Vessel search endpoint called: ${searchType} = ${query}`);
+    const searchResults = await marineTrafficService.searchVessels(query, searchType);
+    
+    res.json({
+      success: true,
+      data: searchResults,
+      query,
+      searchType
+    });
+  } catch (error) {
+    console.error('Error in vessel search endpoint:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to search vessels' 
+    });
+  }
+});
+
+// Get vessel track/history
+app.get('/api/vessels/:id/track', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { timeSpan = 24 } = req.query;
+    
+    console.log(`Vessel track endpoint called for ${id}, timeSpan: ${timeSpan}`);
+    const trackData = await marineTrafficService.getVesselTrack(id, parseInt(timeSpan));
+    
+    res.json({
+      success: true,
+      data: trackData,
+      vesselId: id,
+      timeSpan: parseInt(timeSpan)
+    });
+  } catch (error) {
+    console.error('Error in vessel track endpoint:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch vessel track' 
+    });
+  }
+});
+
+// Get ports information
+app.get('/api/ports', async (req, res) => {
+  try {
+    const { portId, portName } = req.query;
+    
+    if (!portId && !portName) {
+      return res.status(400).json({ 
+        error: 'Either portId or portName must be provided' 
+      });
+    }
+
+    console.log(`Port info endpoint called: ${portId || portName}`);
+    const portInfo = await marineTrafficService.getPortInfo(portId, portName);
+    
+    res.json({
+      success: true,
+      data: portInfo
+    });
+  } catch (error) {
+    console.error('Error in ports endpoint:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch port information' 
+    });
+  }
+});
+
+// Get specific port details
+app.get('/api/ports/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`Port details endpoint called for: ${id}`);
+    const portInfo = await marineTrafficService.getPortInfo(id);
+    
+    res.json({
+      success: true,
+      data: portInfo
+    });
+  } catch (error) {
+    console.error('Error in port details endpoint:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch port details' 
+    });
+  }
+});
+
+// Health check endpoint
+app.get('/api/health', async (req, res) => {
+  try {
+    const health = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      services: {
+        redis: redisClient.isReady,
+        marineTraffic: await marineTrafficService.validateApiKey(),
+        websocket: wsHandler.getConnectedClientsCount()
+      },
+      activeRooms: wsHandler.getActiveRoomsInfo()
+    };
+    
+    res.json(health);
+  } catch (error) {
+    console.error('Error in health check:', error);
+    res.status(500).json({ 
+      status: 'unhealthy',
+      error: error.message 
+    });
+  }
+});
+
 // Initialize oil price cache on startup
 updateOilPriceCache();
 // Initialize coal price cache on startup
 updateCoalPriceCache();
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`News and oil prices backend listening at http://localhost:${port}`);
 }); 
