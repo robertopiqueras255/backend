@@ -6,13 +6,15 @@
     "start": "node news-backend.js"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "rss-parser": "^3.13.0",
     "axios": "^1.6.0",
-    "redis": "^4.6.0",
-    "socket.io": "^4.7.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.3.0",
-    "http": "^0.0.1-security"
+    "express": "^5.1.0",
+    "http": "^0.0.1-security",
+    "mongodb": "^6.18.0",
+    "mongoose": "^8.16.4",
+    "redis": "^4.7.1",
+    "rss-parser": "^3.13.0",
+    "socket.io": "^4.7.0"
   }
 }

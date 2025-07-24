@@ -5,17 +5,23 @@ const express = require('express');
 const cors = require('cors');
 const Parser = require('rss-parser');
 const http = require('http');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 // Import new services
 const { redisClient, cacheUtils } = require('./redisClient');
 const marineTrafficService = require('./marineTrafficService');
 const WebSocketHandler = require('./websocketHandler');
+const portsRouter = require('./routes/ports');
+
+// MongoDB Configuration
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/bedrock-terminal';
 
 // Log environment variables on startup
 console.log('🔧 Environment Variables Check:');
 console.log('- MARINETRAFFIC_API_KEY:', process.env.MARINETRAFFIC_API_KEY ? 'SET' : 'NOT SET');
 console.log('- MAPBOX_TOKEN:', process.env.MAPBOX_TOKEN ? 'SET' : 'NOT SET');
+console.log('- MONGODB_URI:', process.env.MONGODB_URI ? 'SET' : 'NOT SET');
 console.log('- REDIS_HOST:', process.env.REDIS_HOST || 'localhost');
 console.log('- PORT:', process.env.PORT || 4000);
 console.log('- NODE_ENV:', process.env.NODE_ENV || 'development');
@@ -27,6 +33,24 @@ const parser = new Parser();
 
 // Initialize WebSocket handler
 const wsHandler = new WebSocketHandler(server);
+
+// Connect to MongoDB
+async function connectToMongoDB() {
+  try {
+    console.log('🔌 Connecting to MongoDB...');
+    await mongoose.connect(MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('✅ Connected to MongoDB successfully');
+  } catch (error) {
+    console.error('❌ MongoDB connection failed:', error.message);
+    console.log('⚠️  Continuing without MongoDB connection');
+  }
+}
+
+// Initialize MongoDB connection
+connectToMongoDB();
 
 // Oil Price API Configuration
 const OIL_PRICE_API_KEY = '50efc7a396586517babc8e62bc338e82bc3246f6fd9e92a1923a477ada10f02c';
@@ -59,6 +83,9 @@ const FEEDS = {
 
 app.use(cors());
 app.use(express.json());
+
+// Mount ports router
+app.use('/api/ports', portsRouter);
 
 // Function to fetch oil prices from OilPriceAPI
 async function fetchOilPrices() {
@@ -712,53 +739,7 @@ app.get('/api/vessels/:id/track', async (req, res) => {
   }
 });
 
-// Get ports information
-app.get('/api/ports', async (req, res) => {
-  try {
-    const { portId, portName } = req.query;
-    
-    if (!portId && !portName) {
-      return res.status(400).json({ 
-        error: 'Either portId or portName must be provided' 
-      });
-    }
 
-    console.log(`Port info endpoint called: ${portId || portName}`);
-    const portInfo = await marineTrafficService.getPortInfo(portId, portName);
-    
-    res.json({
-      success: true,
-      data: portInfo
-    });
-  } catch (error) {
-    console.error('Error in ports endpoint:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to fetch port information' 
-    });
-  }
-});
-
-// Get specific port details
-app.get('/api/ports/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    console.log(`Port details endpoint called for: ${id}`);
-    const portInfo = await marineTrafficService.getPortInfo(id);
-    
-    res.json({
-      success: true,
-      data: portInfo
-    });
-  } catch (error) {
-    console.error('Error in port details endpoint:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Failed to fetch port details' 
-    });
-  }
-});
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
